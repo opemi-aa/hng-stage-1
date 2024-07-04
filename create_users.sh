@@ -35,15 +35,26 @@ while IFS=';' read -r username groups; do
     username=$(echo "$username" | xargs)
     groups=$(echo "$groups" | xargs)
 
+    echo "Processing user: $username"
+
     # Check if user already exists
     if id "$username" &>/dev/null; then
         log_action "User $username already exists."
+        echo "User $username already exists."
         continue
     fi
 
-    # Create the user and personal group
+    # Create the personal group if it doesn't exist
+    if ! getent group "$username" &>/dev/null; then
+        groupadd "$username"
+        log_action "Created personal group $username."
+        echo "Created personal group $username."
+    fi
+
+    # Create the user with the personal group
     useradd -m -s /bin/bash -g "$username" "$username"
     log_action "Created user $username with personal group $username."
+    echo "Created user $username with personal group $username."
 
     # Add user to additional groups
     IFS=',' read -r -a group_array <<< "$groups"
@@ -52,19 +63,23 @@ while IFS=';' read -r username groups; do
         if ! getent group "$group" &>/dev/null; then
             groupadd "$group"
             log_action "Created group $group."
+            echo "Created group $group."
         fi
         usermod -aG "$group" "$username"
         log_action "Added user $username to group $group."
+        echo "Added user $username to group $group."
     done
 
     # Generate and set a random password
     password=$(generate_password)
     echo "$username:$password" | chpasswd
     log_action "Set password for user $username."
+    echo "Set password for user $username."
 
     # Save the username and password to the secure file
     echo "$username,$password" >> "$PASSWORD_FILE"
+    echo "Saved password for user $username to the secure file."
+
 done < "$USER_FILE"
 
 echo "User creation process completed."
-
